@@ -248,8 +248,3 @@ elif seccion == "Mis reservas":
             st.dataframe(
                 reservas, use_container_width=True, hide_index=True
             )
-
-        except Exception as error:
-            st.error("No se pudo consultar la base de datos.")
-            st.caption(str(error))
-
