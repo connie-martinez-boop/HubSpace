@@ -373,6 +373,68 @@ elif seccion == "Registro de uso":
                     st.error("No se pudo registrar la salida.")
                     st.code(str(error))
 
+    st.divider()
+    st.subheader("📋 Historial de uso de espacios")
+
+    historial_uso = consultar_datos("""
+        SELECT
+            u.nombre AS Persona,
+            e.nombre AS Espacio,
+            ru.hora_ingreso AS Ingreso,
+            ru.hora_salida AS Salida
+        FROM registros_uso ru
+        JOIN usuarios u ON ru.id_usuario = u.id_usuario
+        JOIN espacios e ON ru.id_espacio = e.id_espacio
+        ORDER BY ru.hora_ingreso DESC
+    """)
+
+    if historial_uso.empty:
+        st.info("Todavía no hay registros de uso.")
+    else:
+        historial_uso["Ingreso"] = pd.to_datetime(
+            historial_uso["Ingreso"], errors="coerce"
+        )
+        historial_uso["Salida"] = pd.to_datetime(
+            historial_uso["Salida"], errors="coerce"
+        )
+
+        ahora = pd.Timestamp.now()
+        salida_efectiva = historial_uso["Salida"].fillna(ahora)
+
+        minutos = (
+            (salida_efectiva - historial_uso["Ingreso"])
+            .dt.total_seconds() / 60
+        ).clip(lower=0)
+
+        historial_uso["Tiempo de uso"] = minutos.apply(
+            lambda m: (
+                f"{int(m // 60)} h {int(m % 60)} min"
+                if pd.notna(m) else "No disponible"
+            )
+        )
+
+        historial_uso["Estado"] = historial_uso["Salida"].apply(
+            lambda s: "Finalizado" if pd.notna(s) else "En curso"
+        )
+
+        historial_uso["Ingreso"] = historial_uso["Ingreso"].dt.strftime(
+            "%d-%m-%Y %H:%M"
+        ).fillna("No disponible")
+
+        historial_uso["Salida"] = historial_uso["Salida"].apply(
+            lambda s: s.strftime("%d-%m-%Y %H:%M")
+            if pd.notna(s) else "Pendiente"
+        )
+
+        st.dataframe(
+            historial_uso[
+                ["Persona", "Espacio", "Ingreso", "Salida",
+                 "Tiempo de uso", "Estado"]
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+
 elif seccion == "Administración":
     st.header("🛠️ Administración")
     st.write("Revisa las solicitudes pendientes de autorización.")
