@@ -98,15 +98,14 @@ st.info(
 
 seccion = st.sidebar.radio(
     "Navegación",
-    ["Inicio", "Espacios disponibles", "Nueva reserva", "Mis reservas"]
+    [
+        "Inicio",
+        "Espacios disponibles",
+        "Nueva reserva",
+        "Mis reservas",
+        "Administración"
+    ]
 )
-
-if seccion == "Inicio":
-    st.header("¡Bienvenido a HubSpace!")
-    st.write(
-        "Consulta espacios, solicita reservas y revisa "
-        "la información de uso del edificio."
-    )
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Módulos", "4")
