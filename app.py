@@ -255,3 +255,87 @@ elif seccion == "Mis reservas":
             st.dataframe(
                 reservas, use_container_width=True, hide_index=True
             )
+
+elif seccion == "Administración":
+    st.header("🛠️ Administración")
+    st.write("Revisa las solicitudes que requieren autorización.")
+
+    pendientes = consultar_datos("""
+        SELECT r.id_reserva AS codigo,
+               u.nombre AS solicitante,
+               e.nombre AS espacio,
+               r.inicio AS inicio,
+               r.termino AS termino
+        FROM reservas r
+        JOIN usuarios u ON r.id_usuario = u.id_usuario
+        JOIN espacios e ON r.id_espacio = e.id_espacio
+        WHERE r.estado = 'pendiente'
+        ORDER BY r.inicio
+    """)
+
+    if pendientes.empty:
+        st.success("No hay solicitudes pendientes de aprobación.")
+    else:
+        st.dataframe(
+            pendientes,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        codigo = st.selectbox(
+            "Selecciona el código de la solicitud",
+            pendientes["codigo"].tolist()
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            aprobar = st.button(
+                "✅ Aprobar solicitud",
+                use_container_width=True
+            )
+
+        with col2:
+            rechazar = st.button(
+                "❌ Rechazar solicitud",
+                use_container_width=True
+            )
+
+        if aprobar or rechazar:
+            nuevo_estado = "confirmada" if aprobar else "rechazada"
+
+            with sqlite3.connect(str(RUTA_BD)) as conexion:
+                conexion.execute("PRAGMA foreign_keys = ON")
+
+                reserva = conexion.execute("""
+                    SELECT id_reserva, id_usuario, estado
+                    FROM reservas
+                    WHERE id_reserva = ?
+                """, (codigo,)).fetchone()
+
+                if reserva is None or reserva[2] != "pendiente":
+                    st.warning(
+                        "La solicitud ya no está pendiente. Actualiza la página."
+                    )
+                else:
+                    conexion.execute("""
+                        UPDATE reservas
+                        SET estado = ?
+                        WHERE id_reserva = ?
+                    """, (nuevo_estado, codigo))
+
+                    conexion.execute("""
+                        INSERT INTO historial
+                            (id_reserva, actor_id, accion, detalle)
+                        VALUES (?, ?, ?, ?)
+                    """, (
+                        codigo,
+                        reserva[1],
+                        nuevo_estado,
+                        f"Solicitud {nuevo_estado} desde Administración"
+                    ))
+
+                    st.success(
+                        f"Solicitud {codigo}: {nuevo_estado}."
+                    )
+                    st.rerun()
