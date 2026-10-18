@@ -294,9 +294,7 @@ elif seccion == "Administración":
 
         with col2:
             rechazar = st.button("❌ Rechazar solicitud")
-
-        if aprobar or rechazar:
-            
+  
         if aprobar or rechazar:
             nuevo_estado = "confirmada" if aprobar else "rechazada"
 
