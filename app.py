@@ -296,44 +296,62 @@ elif seccion == "Administración":
             rechazar = st.button("❌ Rechazar solicitud")
 
         if aprobar or rechazar:
+            
+        if aprobar or rechazar:
             nuevo_estado = "confirmada" if aprobar else "rechazada"
 
-            with sqlite3.connect(str(RUTA_BD)) as conexion:
-                reserva = conexion.execute("""
-                    SELECT id_reserva, id_usuario, estado
-                    FROM reservas
-                    WHERE id_reserva = ?
-                """, (codigo,)).fetchone()
-
-                if reserva is None:
-                    st.error("No se encontró la solicitud.")
-                elif reserva[2] != "pendiente":
-                    st.warning("La solicitud ya no está pendiente.")
-                else:
-                    conexion.execute("""
-                        UPDATE reservas
-                        SET estado = ?
+            try:
+                with sqlite3.connect(str(RUTA_BD)) as conexion:
+                    reserva = conexion.execute("""
+                        SELECT id_reserva, estado
+                        FROM reservas
                         WHERE id_reserva = ?
-                    """, (nuevo_estado, codigo))
+                    """, (codigo,)).fetchone()
 
-                    conexion.execute("""
-                        INSERT INTO historial
-                            (id_reserva, actor_id, accion, detalle)
-                        VALUES (?, ?, ?, ?)
-                    """, (
-                        codigo,
-                        reserva[1],
-                        nuevo_estado,
-                        f"Solicitud {nuevo_estado} desde Administración"
-                    ))
+                    if reserva is None:
+                        st.error("No se encontró la solicitud.")
 
-                    st.success(
-                        f"Solicitud {codigo}: {nuevo_estado}."
-                    )
-                    st.rerun()
+                    elif reserva[1] != "pendiente":
+                        st.warning(
+                            f"La solicitud ya tiene estado: {reserva[1]}."
+                        )
 
+                    else:
+                        conexion.execute("""
+                            UPDATE reservas
+                            SET estado = ?
+                            WHERE id_reserva = ?
+                        """, (nuevo_estado, codigo))
 
-                    st.success(
-                        f"Solicitud {codigo}: {nuevo_estado}."
-                    )
-                    st.rerun()
+                        conexion.execute("""
+                            INSERT INTO historial
+                                (id_reserva, actor_id, accion, detalle)
+                            VALUES (?, ?, ?, ?)
+                        """, (
+                            codigo,
+                            reserva[0],
+                            nuevo_estado,
+                            f"Solicitud {nuevo_estado} desde Administración"
+                        ))
+
+                        conexion.commit()
+
+                        estado_guardado = conexion.execute("""
+                            SELECT estado
+                            FROM reservas
+                            WHERE id_reserva = ?
+                        """, (codigo,)).fetchone()
+
+                        if estado_guardado and estado_guardado[0] == nuevo_estado:
+                            st.success(
+                                f"¡Solicitud {codigo} actualizada! "
+                                f"Estado: {nuevo_estado}."
+                            )
+                        else:
+                            st.error(
+                                "El estado no coincide con el esperado."
+                            )
+
+            except Exception as error:
+                st.error("No se pudo actualizar la solicitud.")
+                st.code(str(error))
