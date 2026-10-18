@@ -5,6 +5,94 @@ from pathlib import Path
 from datetime import datetime, date, time
 import pandas as pd
 
+# ==========================================
+# FACHADA VISUAL DE HUBSPACE
+# ==========================================
+
+st.markdown("""
+<style>
+
+/* Fondo general */
+.stApp {
+    background-color: #F3F7FC;
+    color: #172B4D;
+}
+
+/* Ocultar elementos visuales predeterminados */
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
+
+/* Barra superior */
+header[data-testid="stHeader"] {
+    background-color: #F3F7FC;
+}
+
+/* Panel lateral */
+section[data-testid="stSidebar"] {
+    background-color: #102A43;
+}
+
+section[data-testid="stSidebar"] * {
+    color: #FFFFFF;
+}
+
+/* Títulos */
+h1, h2, h3 {
+    color: #102A43;
+}
+
+/* Botones */
+.stButton > button {
+    background-color: #168AAD;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 0.55rem 1rem;
+    font-weight: 600;
+    transition: 0.2s;
+}
+
+.stButton > button:hover {
+    background-color: #126782;
+    color: white;
+    border: none;
+}
+
+/* Campos de entrada */
+.stTextInput input,
+.stSelectbox div[data-baseweb="select"],
+.stDateInput input,
+.stTimeInput input {
+    border-radius: 8px;
+}
+
+/* Tablas */
+[data-testid="stDataFrame"] {
+    border: 1px solid #D9E4F2;
+    border-radius: 10px;
+}
+
+/* Contenedores */
+div[data-testid="stMetric"] {
+    background-color: #FFFFFF;
+    border: 1px solid #D9E4F2;
+    padding: 18px;
+    border-radius: 14px;
+}
+
+/* Separadores */
+hr {
+    border-color: #D9E4F2;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 st.set_page_config(
     page_title="HubSpace",
     page_icon="🏢",
@@ -97,29 +185,159 @@ st.info(
 )
 
 
+
+opciones_menu = [
+    "Inicio",
+    "Espacios disponibles",
+    "Nueva reserva",
+    "Mis reservas",
+    "Registro de uso",
+    "Administración"
+]
+
+if "destino_hubspace" not in st.session_state:
+    st.session_state["destino_hubspace"] = "Inicio"
+
+if st.session_state["destino_hubspace"] not in opciones_menu:
+    st.session_state["destino_hubspace"] = "Inicio"
+
 seccion = st.sidebar.radio(
-    "Navegación",
-    [
-        "Inicio",
-        "Espacios disponibles",
-        "Nueva reserva",
-        "Mis reservas",
-        "Registro de uso",
-        "Administración"
-    ]
+    "NAVEGACIÓN",
+    opciones_menu,
+    key="destino_hubspace"
 )
 
+
+
 if seccion == "Inicio":
-    st.header("¡Bienvenido a HubSpace!")
-    st.write(
-        "Consulta espacios, solicita reservas y "
-        "revisa la información de uso del edificio."
-    )
+
+    # Encabezado principal
+    st.markdown("""
+        <div style="
+            background: linear-gradient(120deg, #102A43, #168AAD);
+            padding: 32px;
+            border-radius: 18px;
+            color: white;
+            margin-bottom: 25px;
+        ">
+            <p style="
+                color: #BDEBFF;
+                font-size: 14px;
+                margin-bottom: 8px;
+            ">HUB DE PROVIDENCIA · PLATAFORMA DE GESTIÓN</p>
+
+            <h1 style="
+                color: white;
+                margin: 0;
+                font-size: 36px;
+            ">Bienvenido a HubSpace</h1>
+
+            <p style="
+                color: white;
+                font-size: 17px;
+                margin-top: 12px;
+                margin-bottom: 0;
+            ">
+                Gestiona espacios, organiza reservas y consulta
+                la actividad del Hub desde un solo lugar.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # Indicadores de la plataforma
+    st.subheader("Resumen de actividad")
+
+    total_espacios = consultar_datos("""
+        SELECT COUNT(*) AS total
+        FROM espacios
+        WHERE activo = 1
+    """).iloc[0]["total"]
+
+    total_reservas = consultar_datos("""
+        SELECT COUNT(*) AS total
+        FROM reservas
+    """).iloc[0]["total"]
+
+    pendientes = consultar_datos("""
+        SELECT COUNT(*) AS total
+        FROM reservas
+        WHERE estado = 'pendiente'
+    """).iloc[0]["total"]
+
+    usos_activos = consultar_datos("""
+        SELECT COUNT(*) AS total
+        FROM registros_uso
+        WHERE hora_salida IS NULL
+    """).iloc[0]["total"]
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Espacios activos", int(total_espacios))
+    col2.metric("Reservas registradas", int(total_reservas))
+    col3.metric("Solicitudes pendientes", int(pendientes))
+    col4.metric("Usos en curso", int(usos_activos))
+
+    st.divider()
+
+    # Accesos rápidos
+    st.subheader("¿Qué necesitas hacer?")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Módulos", "5")
-    col2.metric("Base de datos", "SQLite")
-    col3.metric("Estado", "Prototipo")
+
+    with col1:
+        st.markdown("### 📅 Reservar")
+        st.write("Encuentra un espacio para tu próxima actividad.")
+        if st.button("Nueva reserva", use_container_width=True):
+            st.session_state["destino_hubspace"] = "Nueva reserva"
+            st.rerun()
+
+    with col2:
+        st.markdown("### 🏢 Espacios")
+        st.write("Consulta los espacios disponibles en el Hub.")
+        if st.button("Ver espacios", use_container_width=True):
+            st.session_state["destino_hubspace"] = "Espacios disponibles"
+            st.rerun()
+
+    with col3:
+        st.markdown("### 🕒 Registro de uso")
+        st.write("Registra ingresos y salidas de los espacios.")
+        if st.button("Gestionar uso", use_container_width=True):
+            st.session_state["destino_hubspace"] = "Registro de uso"
+            st.rerun()
+
+    st.divider()
+
+    # Últimas reservas
+    st.subheader("Actividad reciente")
+
+    ultimas_reservas = consultar_datos("""
+        SELECT
+            r.id_reserva AS 'N.º reserva',
+            u.nombre AS 'Usuario',
+            e.nombre AS 'Espacio',
+            r.inicio AS 'Inicio',
+            r.termino AS 'Término',
+            r.estado AS 'Estado'
+        FROM reservas r
+        JOIN usuarios u ON r.id_usuario = u.id_usuario
+        JOIN espacios e ON r.id_espacio = e.id_espacio
+        ORDER BY r.creada_en DESC
+        LIMIT 5
+    """)
+
+    if ultimas_reservas.empty:
+        st.info("Todavía no hay reservas registradas.")
+    else:
+        st.dataframe(
+            ultimas_reservas,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    st.caption(
+        "HubSpace · Prototipo de gestión integrada de espacios"
+    )
+
 
 elif seccion == "Espacios disponibles":
     st.header("🏢 Espacios disponibles")
