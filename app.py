@@ -104,6 +104,7 @@ seccion = st.sidebar.radio(
         "Espacios disponibles",
         "Nueva reserva",
         "Mis reservas",
+        "Registro de uso",
         "Administración"
     ]
 )
