@@ -257,6 +257,122 @@ elif seccion == "Mis reservas":
                 reservas, use_container_width=True, hide_index=True
             )
 
+elif seccion == "Registro de uso":
+    st.header("🕒 Registro de uso de espacios")
+    st.write("Registra el ingreso y la salida de los usuarios.")
+
+    # Mostrar reservas confirmadas
+    reservas_uso = consultar_datos("""
+        SELECT
+            r.id_reserva AS codigo,
+            u.nombre AS usuario,
+            e.nombre AS espacio,
+            r.inicio AS inicio,
+            r.termino AS termino
+        FROM reservas r
+        JOIN usuarios u ON r.id_usuario = u.id_usuario
+        JOIN espacios e ON r.id_espacio = e.id_espacio
+        WHERE r.estado = 'confirmada'
+        ORDER BY r.inicio
+    """)
+
+    if reservas_uso.empty:
+        st.info("No hay reservas confirmadas para mostrar.")
+
+    else:
+        st.subheader("Reservas disponibles")
+        st.dataframe(
+            reservas_uso,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        codigo = st.selectbox(
+            "Selecciona el código de la reserva",
+            reservas_uso["codigo"].tolist()
+        )
+
+        uso_actual = consultar_datos("""
+            SELECT id_uso, hora_ingreso, hora_salida
+            FROM registros_uso
+            WHERE id_reserva = ?
+            ORDER BY id_uso DESC
+            LIMIT 1
+        """, (codigo,))
+
+        if uso_actual.empty or pd.notna(
+            uso_actual.iloc[0]["hora_salida"]
+        ):
+            if st.button("🟢 Registrar ingreso"):
+                try:
+                    ahora = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+
+                    with sqlite3.connect(str(RUTA_BD)) as conexion:
+                        conexion.execute("""
+                            INSERT INTO registros_uso (
+                                id_espacio,
+                                id_usuario,
+                                id_reserva,
+                                hora_ingreso,
+                                hora_salida
+                            )
+                            SELECT
+                                id_espacio,
+                                id_usuario,
+                                id_reserva,
+                                ?,
+                                NULL
+                            FROM reservas
+                            WHERE id_reserva = ?
+                              AND estado = 'confirmada'
+                        """, (ahora, codigo))
+
+                        conexion.commit()
+
+                    st.success("Ingreso registrado correctamente.")
+                    st.rerun()
+
+                except Exception as error:
+                    st.error("No se pudo registrar el ingreso.")
+                    st.code(str(error))
+
+        else:
+            st.info(
+                "Esta reserva tiene un ingreso registrado "
+                "que todavía no tiene salida."
+            )
+
+            st.write(
+                "Hora de ingreso: "
+                + str(uso_actual.iloc[0]["hora_ingreso"])
+            )
+
+            if st.button("🔴 Registrar salida"):
+                try:
+                    ahora = datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                    id_uso = int(uso_actual.iloc[0]["id_uso"])
+
+                    with sqlite3.connect(str(RUTA_BD)) as conexion:
+                        conexion.execute("""
+                            UPDATE registros_uso
+                            SET hora_salida = ?
+                            WHERE id_uso = ?
+                              AND hora_salida IS NULL
+                        """, (ahora, id_uso))
+
+                        conexion.commit()
+
+                    st.success("Salida registrada correctamente.")
+                    st.rerun()
+
+                except Exception as error:
+                    st.error("No se pudo registrar la salida.")
+                    st.code(str(error))
+
 elif seccion == "Administración":
     st.header("🛠️ Administración")
     st.write("Revisa las solicitudes pendientes de autorización.")
