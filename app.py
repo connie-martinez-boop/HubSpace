@@ -96,6 +96,7 @@ st.info(
     "No utilizar para gestionar reservas reales."
 )
 
+
 seccion = st.sidebar.radio(
     "Navegación",
     [
@@ -107,8 +108,15 @@ seccion = st.sidebar.radio(
     ]
 )
 
+if seccion == "Inicio":
+    st.header("¡Bienvenido a HubSpace!")
+    st.write(
+        "Consulta espacios, solicita reservas y "
+        "revisa la información de uso del edificio."
+    )
+
     col1, col2, col3 = st.columns(3)
-    col1.metric("Módulos", "4")
+    col1.metric("Módulos", "5")
     col2.metric("Base de datos", "SQLite")
     col3.metric("Estado", "Prototipo")
 
