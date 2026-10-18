@@ -258,7 +258,7 @@ elif seccion == "Mis reservas":
 
 elif seccion == "Administración":
     st.header("🛠️ Administración")
-    st.write("Revisa las solicitudes que requieren autorización.")
+    st.write("Revisa las solicitudes pendientes de autorización.")
 
     pendientes = consultar_datos("""
         SELECT r.id_reserva AS codigo,
@@ -274,7 +274,7 @@ elif seccion == "Administración":
     """)
 
     if pendientes.empty:
-        st.success("No hay solicitudes pendientes de aprobación.")
+        st.success("No hay solicitudes pendientes.")
     else:
         st.dataframe(
             pendientes,
@@ -283,40 +283,32 @@ elif seccion == "Administración":
         )
 
         codigo = st.selectbox(
-            "Selecciona el código de la solicitud",
+            "Selecciona una solicitud",
             pendientes["codigo"].tolist()
         )
 
         col1, col2 = st.columns(2)
 
         with col1:
-            aprobar = st.button(
-                "✅ Aprobar solicitud",
-                use_container_width=True
-            )
+            aprobar = st.button("✅ Aprobar solicitud")
 
         with col2:
-            rechazar = st.button(
-                "❌ Rechazar solicitud",
-                use_container_width=True
-            )
+            rechazar = st.button("❌ Rechazar solicitud")
 
         if aprobar or rechazar:
             nuevo_estado = "confirmada" if aprobar else "rechazada"
 
             with sqlite3.connect(str(RUTA_BD)) as conexion:
-                conexion.execute("PRAGMA foreign_keys = ON")
-
                 reserva = conexion.execute("""
                     SELECT id_reserva, id_usuario, estado
                     FROM reservas
                     WHERE id_reserva = ?
                 """, (codigo,)).fetchone()
 
-                if reserva is None or reserva[2] != "pendiente":
-                    st.warning(
-                        "La solicitud ya no está pendiente. Actualiza la página."
-                    )
+                if reserva is None:
+                    st.error("No se encontró la solicitud.")
+                elif reserva[2] != "pendiente":
+                    st.warning("La solicitud ya no está pendiente.")
                 else:
                     conexion.execute("""
                         UPDATE reservas
@@ -334,6 +326,12 @@ elif seccion == "Administración":
                         nuevo_estado,
                         f"Solicitud {nuevo_estado} desde Administración"
                     ))
+
+                    st.success(
+                        f"Solicitud {codigo}: {nuevo_estado}."
+                    )
+                    st.rerun()
+
 
                     st.success(
                         f"Solicitud {codigo}: {nuevo_estado}."
