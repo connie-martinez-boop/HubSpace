@@ -521,9 +521,6 @@ elif seccion == "Registro de uso":
         if uso_actual.empty or pd.notna(
             uso_actual.iloc[0]["hora_salida"]
         ):
-        if uso_actual.empty or pd.notna(
-            uso_actual.iloc[0]["hora_salida"]
-        ):
             
     if st.button("🟢 Registrar ingreso"):
         try:
