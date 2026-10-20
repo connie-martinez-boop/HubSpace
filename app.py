@@ -521,40 +521,98 @@ elif seccion == "Registro de uso":
         if uso_actual.empty or pd.notna(
             uso_actual.iloc[0]["hora_salida"]
         ):
-            if st.button("🟢 Registrar ingreso"):
-                try:
-                    ahora = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
+            
+if st.button("🟢 Registrar ingreso"):
+    try:
+        ahora_dt = datetime.now()
+        ahora = ahora_dt.strftime("%Y-%m-%d %H:%M:%S")
 
-                    with sqlite3.connect(str(RUTA_BD)) as conexion:
-                        conexion.execute("""
-                            INSERT INTO registros_uso (
-                                id_espacio,
-                                id_usuario,
-                                id_reserva,
-                                hora_ingreso,
-                                hora_salida
-                            )
-                            SELECT
-                                id_espacio,
-                                id_usuario,
-                                id_reserva,
-                                ?,
-                                NULL
-                            FROM reservas
-                            WHERE id_reserva = ?
-                              AND estado = 'confirmada'
-                        """, (ahora, codigo))
+        with sqlite3.connect(str(RUTA_BD)) as conexion:
+            conexion.execute("BEGIN IMMEDIATE")
 
-                        conexion.commit()
+            reserva = conexion.execute("""
+                SELECT id_usuario, id_espacio, inicio, termino
+                FROM reservas
+                WHERE id_reserva = ?
+                  AND estado = 'confirmada'
+            """, (codigo,)).fetchone()
 
-                    st.success("Ingreso registrado correctamente.")
-                    st.rerun()
+            if reserva is None:
+                raise ValueError(
+                    "La reserva ya no existe o no está confirmada."
+                )
 
-                except Exception as error:
-                    st.error("No se pudo registrar el ingreso.")
-                    st.code(str(error))
+            id_usuario, id_espacio, inicio, termino = reserva
+
+            inicio_dt = datetime.fromisoformat(inicio)
+            termino_dt = datetime.fromisoformat(termino)
+
+            if ahora_dt < inicio_dt:
+                raise ValueError(
+                    "Todavía no comienza el horario reservado."
+                )
+
+            if ahora_dt > termino_dt:
+                raise ValueError(
+                    "El horario de esta reserva ya terminó."
+                )
+
+            # Verificar si la reserva ya tiene un uso abierto
+            uso_abierto = conexion.execute("""
+                SELECT id_uso
+                FROM registros_uso
+                WHERE id_reserva = ?
+                  AND hora_salida IS NULL
+                LIMIT 1
+            """, (codigo,)).fetchone()
+
+            if uso_abierto is not None:
+                raise ValueError(
+                    "Esta reserva ya tiene un ingreso sin salida."
+                )
+
+            # Evitar que el mismo usuario tenga dos usos simultáneos
+            otro_uso = conexion.execute("""
+                SELECT ru.id_uso
+                FROM registros_uso ru
+                WHERE ru.id_usuario = ?
+                  AND ru.hora_salida IS NULL
+                LIMIT 1
+            """, (id_usuario,)).fetchone()
+
+            if otro_uso is not None:
+                raise ValueError(
+                    "Este usuario ya tiene otro uso en curso. "
+                    "Debe registrar su salida primero."
+                )
+
+            conexion.execute("""
+                INSERT INTO registros_uso (
+                    id_espacio,
+                    id_usuario,
+                    id_reserva,
+                    hora_ingreso,
+                    hora_salida
+                )
+                VALUES (?, ?, ?, ?, NULL)
+            """, (
+                id_espacio,
+                id_usuario,
+                codigo,
+                ahora
+            ))
+
+            conexion.commit()
+
+        st.success("Ingreso registrado correctamente.")
+        st.rerun()
+
+    except ValueError as error:
+        st.warning(str(error))
+
+    except Exception as error:
+        st.error("No se pudo registrar el ingreso.")
+        st.code(str(error))
 
         else:
             st.info(
@@ -567,29 +625,64 @@ elif seccion == "Registro de uso":
                 + str(uso_actual.iloc[0]["hora_ingreso"])
             )
 
-            if st.button("🔴 Registrar salida"):
-                try:
-                    ahora = datetime.now().strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    )
-                    id_uso = int(uso_actual.iloc[0]["id_uso"])
+            
+if st.button("🔴 Registrar salida"):
+    try:
+        ahora_dt = datetime.now()
+        ahora = ahora_dt.strftime("%Y-%m-%d %H:%M:%S")
+        id_uso = int(uso_actual.iloc[0]["id_uso"])
 
-                    with sqlite3.connect(str(RUTA_BD)) as conexion:
-                        conexion.execute("""
-                            UPDATE registros_uso
-                            SET hora_salida = ?
-                            WHERE id_uso = ?
-                              AND hora_salida IS NULL
-                        """, (ahora, id_uso))
+        with sqlite3.connect(str(RUTA_BD)) as conexion:
+            conexion.execute("BEGIN IMMEDIATE")
 
-                        conexion.commit()
+            registro = conexion.execute("""
+                SELECT hora_ingreso, hora_salida
+                FROM registros_uso
+                WHERE id_uso = ?
+            """, (id_uso,)).fetchone()
 
-                    st.success("Salida registrada correctamente.")
-                    st.rerun()
+            if registro is None:
+                raise ValueError(
+                    "No se encontró el registro de ingreso."
+                )
 
-                except Exception as error:
-                    st.error("No se pudo registrar la salida.")
-                    st.code(str(error))
+            hora_ingreso, hora_salida = registro
+
+            if hora_salida is not None:
+                raise ValueError(
+                    "Este uso ya tiene una salida registrada."
+                )
+
+            ingreso_dt = datetime.fromisoformat(hora_ingreso)
+
+            if ahora_dt < ingreso_dt:
+                raise ValueError(
+                    "La salida no puede ser anterior al ingreso."
+                )
+
+            cursor = conexion.execute("""
+                UPDATE registros_uso
+                SET hora_salida = ?
+                WHERE id_uso = ?
+                  AND hora_salida IS NULL
+            """, (ahora, id_uso))
+
+            if cursor.rowcount != 1:
+                raise ValueError(
+                    "No se pudo cerrar el registro de uso."
+                )
+
+            conexion.commit()
+
+        st.success("Salida registrada correctamente.")
+        st.rerun()
+
+    except ValueError as error:
+        st.warning(str(error))
+
+    except Exception as error:
+        st.error("No se pudo registrar la salida.")
+        st.code(str(error))
 
     st.divider()
     st.subheader("📋 Historial de uso de espacios")
